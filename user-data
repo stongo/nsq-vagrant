@@ -1,63 +1,19 @@
 #cloud-config
 
----
 coreos:
-  update:
-    reboot-strategy: etcd-lock
+  etcd:
+    # generate a new token for each unique cluster from https://discovery.etcd.io/new
+    # WARNING: replace each time you 'vagrant destroy'
+    #discovery: https://discovery.etcd.io/<token>
+    addr: $public_ipv4:4001
+    peer-addr: $public_ipv4:7001
   fleet:
     public-ip: $public_ipv4
-    private-ip: $private_ipv4
-    metadata: region=vagrant
   units:
+  - name: etcd.service
+    command: start
   - name: fleet.service
     command: start
-  - name: nsqd.service
-    command: start
-    content: |
-      [Unit]
-      Description=Nsqd
-      After=docker.service
-      Requires=docker.service
-
-      [Service]
-      TimeoutStartSec=0
-      EnvironmentFile=/etc/environment
-      ExecStartPre=-/usr/bin/docker kill nsqd
-      ExecStartPre=-/usr/bin/docker rm nsqd
-      ExecStartPre=/usr/bin/docker pull redis
-      ExecStart=/bin/bash -c '\
-          /usr/bin/docker run -rm --name=nsqd -p 4150:4150 -p 4151:4151 nsqio/nsqd --lookupd-tcp-address=$(/usr/bin/etcdctl get /nsqlookupd) --broadcast-address=${COREOS_PRIVATE_IPV4} \
-          '
-      ExecStop=/usr/bin/docker stop nsqd
-  - name: nsqlookupd.service
-    command: start
-    content: |
-      [Unit]
-      Description=Nsqlookupd
-      After=docker.service
-      Requires=docker.service
-
-      [Service]
-      TimeoutStartSec=0
-      ExecStartPre=-/usr/bin/docker kill nsqlookupd
-      ExecStartPre=-/usr/bin/docker rm nsqlookupd
-      ExecStartPre=/usr/bin/docker pull redis
-      ExecStart=/usr/bin/docker run -rm --name=nsqlookupd -p 4160:4160 -p 4161:4161 nsqio/nsqlookupd
-      ExecStop=/usr/bin/docker stop nsqlookupd
-  - name: docker-tcp.socket
-    command: start
-    enable: true
-    content: |
-      [Unit]
-      Description=Docker Socket for the API
-
-      [Socket]
-      ListenStream=2375
-      Service=docker.service
-      BindIPv6Only=both
-
-      [Install]
-      WantedBy=sockets.target
   - name: settimezone.service
     command: start
     content: |
@@ -80,6 +36,20 @@ write_files:
     restrict default nomodify nopeer noquery limited kod
     restrict 127.0.0.1
     restrict [::1]
+- path: /home/core/nsqlookupd.service
+  content: |
+    [Unit]
+    Description=Nsqlookupd
+    After=docker.service
+    Requires=docker.service
+
+    [Service]
+    TimeoutStartSec=0
+    ExecStartPre=-/usr/bin/docker kill nsqlookupd
+    ExecStartPre=-/usr/bin/docker rm nsqlookupd
+    ExecStartPre=/usr/bin/docker pull redis
+    ExecStart=/usr/bin/docker run -rm --name=nsqlookupd -p 4160:4160 -p 4161:4161 nsqio/nsqlookupd
+    ExecStop=/usr/bin/docker stop nsqlookupd
 - path: /home/core/nsqlookupd-sidekick.service
   content: |
     [Unit]
@@ -112,3 +82,17 @@ write_files:
 
     [X-Fleet]
     MachineOf=nsqlookupd.service
+- path: /home/core/nsqd.service
+  content: |
+    [Unit]
+    Description=Nsqlookupd
+    After=docker.service
+    Requires=docker.service
+
+    [Service]
+    TimeoutStartSec=0
+    ExecStartPre=-/usr/bin/docker kill nsqlookupd
+    ExecStartPre=-/usr/bin/docker rm nsqlookupd
+    ExecStartPre=/usr/bin/docker pull redis
+    ExecStart=/usr/bin/docker run -rm --name=nsqlookupd -p 4160:4160 -p 4161:4161 nsqio/nsqlookupd
+    ExecStop=/usr/bin/docker stop nsqlookupd
