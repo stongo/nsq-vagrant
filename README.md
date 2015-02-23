@@ -17,6 +17,7 @@ config.vm.network "forwarded_port", guest: 4161, host: 4161
 ```
 1. Run `vagrant up`
 1. SSH in to vagrant - `vagrant ssh` and execute `fleetctl start nsqlookupd-sidekick.service`
+1. You may need to restart nsqd after starting the nsqlookupd-sidekick. `systemctl restart nsqd`
 
 That should be it!
 
