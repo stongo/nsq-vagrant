@@ -85,14 +85,17 @@ write_files:
 - path: /home/core/nsqd.service
   content: |
     [Unit]
-    Description=Nsqlookupd
+    Description=Nsqd
     After=docker.service
     Requires=docker.service
 
     [Service]
     TimeoutStartSec=0
-    ExecStartPre=-/usr/bin/docker kill nsqlookupd
-    ExecStartPre=-/usr/bin/docker rm nsqlookupd
+    EnvironmentFile=/etc/environment
+    ExecStartPre=-/usr/bin/docker kill nsqd
+    ExecStartPre=-/usr/bin/docker rm nsqd
     ExecStartPre=/usr/bin/docker pull redis
-    ExecStart=/usr/bin/docker run -rm --name=nsqlookupd -p 4160:4160 -p 4161:4161 nsqio/nsqlookupd
-    ExecStop=/usr/bin/docker stop nsqlookupd
+    ExecStart=/bin/bash -c '\
+        /usr/bin/docker run -rm --name=nsqd -p 4150:4150 -p 4151:4151 nsqio/nsqd --lookupd-tcp-address=$(/usr/bin/etcdctl get /nsqlookupd) --broadcast-address=${COREOS_PRIVATE_IPV4} \
+        '
+    ExecStop=/usr/bin/docker stop nsqd
