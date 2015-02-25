@@ -14,6 +14,20 @@ coreos:
     command: start
   - name: fleet.service
     command: start
+  - name: docker.socket
+    command: start
+    enable: true
+    content: |
+      [Unit]
+      Description=Docker Socket for the API
+
+      [Socket]
+      ListenStream=2375
+      Service=docker.service
+      BindIPv6Only=both
+
+      [Install]
+      WantedBy=sockets.target
   - name: settimezone.service
     command: start
     content: |
