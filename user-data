@@ -86,7 +86,7 @@ write_files:
       if [ $? -eq 0 ]; then \
         etcdctl set /nsqlookupd ${COREOS_PRIVATE_IPV4}:$TCP_PORT --ttl 30; \
         etcdctl set /nsqlookupd-http ${COREOS_PRIVATE_IPV4}:$HTTP_PORT --ttl 30; \
-      fi \
+      fi; \
       while true; do \
         curl -f ${COREOS_PRIVATE_IPV4}:$HTTP_PORT/ping; \
         if [ $? -ne 0 ]; then \
