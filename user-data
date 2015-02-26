@@ -14,20 +14,6 @@ coreos:
     command: start
   - name: fleet.service
     command: start
-  - name: docker-tcp.socket
-    command: start
-    enable: true
-    content: |
-      [Unit]
-      Description=Docker Socket for the API
-
-      [Socket]
-      ListenStream=2375
-      Service=docker.service
-      BindIPv6Only=both
-
-      [Install]
-      WantedBy=sockets.target
   - name: settimezone.service
     command: start
     content: |
@@ -64,8 +50,6 @@ write_files:
     ExecStartPre=/usr/bin/docker pull nsqio/nsqlookupd
     ExecStart=/usr/bin/docker run -rm --name=nsqlookupd -p 4160:4160 -p 4161:4161 nsqio/nsqlookupd
     ExecStop=/usr/bin/docker stop nsqlookupd
-    Restart=on-failure
-    RestartSec=10s
 - path: /home/core/nsqlookupd-sidekick.service
   content: |
     [Unit]
@@ -79,21 +63,18 @@ write_files:
     [Service]
     EnvironmentFile=/etc/environment
     ExecStart=/bin/bash -c '\
-      sleep 10; \
-      HTTP_PORT=4161; \
-      TCP_PORT=4160; \
-      curl -f ${COREOS_PRIVATE_IPV4}:$HTTP_PORT/ping; \
-      if [ $? -eq 0 ]; then \
-        etcdctl set /nsqlookupd ${COREOS_PRIVATE_IPV4}:$TCP_PORT --ttl 30; \
-        etcdctl set /nsqlookupd-http ${COREOS_PRIVATE_IPV4}:$HTTP_PORT --ttl 30; \
-      fi; \
       while true; do \
+        HTTP_PORT=4161; \
+        TCP_PORT=4160; \
         curl -f ${COREOS_PRIVATE_IPV4}:$HTTP_PORT/ping; \
-        if [ $? -ne 0 ]; then \
+        if [ $? -eq 0 ]; then \
+          etcdctl set /nsqlookupd ${COREOS_PRIVATE_IPV4}:$TCP_PORT --ttl 30; \
+          etcdctl set /nsqlookupd-http ${COREOS_PRIVATE_IPV4}:$HTTP_PORT --ttl 30; \
+        else \
           etcdctl rm /nsqlookupd; \
           etcdctl rm /nsqlookupd-http; \
         fi; \
-        sleep 10; \
+        sleep 30; \
       done'
     ExecStop=/usr/bin/etcdctl rm /nsqlookupd
     Restart=on-failure
@@ -118,33 +99,3 @@ write_files:
         /usr/bin/docker run -rm --name=nsqd -p 4150:4150 -p 4151:4151 nsqio/nsqd --lookupd-tcp-address=$(/usr/bin/etcdctl get /nsqlookupd) --broadcast-address=${COREOS_PRIVATE_IPV4} \
         '
     ExecStop=/usr/bin/docker stop nsqd
-    Restart=on-failure
-    RestartSec=10s
-- path: /home/core/nsqd-sidekick.service
-  content: |
-    [Unit]
-    Description=Nsqd etcd watcher
-    Requires=etcd.service
-    Requires=nsqd.service
-    Requires=nsqlookupd.service
-    After=etcd.service
-    After=nsqlookupd.service
-    After=nsqd.service
-    BindsTo=nsqd.service
-
-    [Service]
-    EnvironmentFile=/etc/environment
-    ExecStart=/bin/bash -c '\
-      TCP_KEY="/nsqlookupd"; \
-      /usr/bin/etcdctl watch $TCP_KEY; \
-      wait; \
-      echo "nsqlookupd changed machines"; \
-      fleetctl stop nsqd.service; \
-      fleetctl start nsqd.service \
-    '
-    ExecStop=/usr/bin/etcdctl rm /nsqlookupd
-    Restart=on-failure
-    RestartSec=10s
-
-    [X-Fleet]
-    MachineOf=nsqd.service
