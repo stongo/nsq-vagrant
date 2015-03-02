@@ -138,13 +138,9 @@ write_files:
         if [ "$NSQLOOKUPDCHECK" != "$NSQLOOKUPD" ]; then \
           echo "restarting nsqd"; \
           /usr/bin/docker kill nsqd; \
-          exit 1; \
         fi; \
         sleep 30; \
       done'
-    ExecStop=/usr/bin/etcdctl rm /nsqlookupd
-    Restart=always
-    RestartSec=10s
 
     [X-Fleet]
     MachineOf=nsqd.service
