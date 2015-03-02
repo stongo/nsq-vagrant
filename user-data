@@ -103,7 +103,9 @@ write_files:
     [Unit]
     Description=Nsqd
     After=docker.service
+    After=nsqlookupd.service
     Requires=docker.service
+    Requires=nsqlookupd.service
 
     [Service]
     TimeoutStartSec=0
