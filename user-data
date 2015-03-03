@@ -114,7 +114,7 @@ write_files:
     ExecStartPre=-/usr/bin/docker rm nsqd
     ExecStartPre=/usr/bin/docker pull nsqio/nsqd
     ExecStart=/bin/bash -c '\
-        /usr/bin/docker run -rm --name=nsqd -p 4150:4150 -p 4151:4151 nsqio/nsqd --lookupd-tcp-address=$(/usr/bin/etcdctl get /nsqlookupd) --broadcast-address=${COREOS_PRIVATE_IPV4} \
+        /usr/bin/docker run -rm --name=nsqd -p 4150:4150 -p 4151:4151 -v /data nsqio/nsqd --lookupd-tcp-address=$(/usr/bin/etcdctl get /nsqlookupd) --broadcast-address=${COREOS_PRIVATE_IPV4} \
         '
     ExecStop=/usr/bin/docker stop nsqd
     Restart=always
