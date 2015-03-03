@@ -128,6 +128,7 @@ write_files:
     Requires=nsqlookupd.service
     After=etcd.service
     After=nsqd.service
+    After=nsqlookupd.service
     BindsTo=nsqd.service
 
     [Service]
