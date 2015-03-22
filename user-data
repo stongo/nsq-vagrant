@@ -105,7 +105,6 @@ write_files:
     After=docker.service
     After=nsqlookupd.service
     Requires=docker.service
-    Requires=nsqlookupd.service
 
     [Service]
     TimeoutStartSec=0
@@ -119,13 +118,15 @@ write_files:
     ExecStop=/usr/bin/docker stop nsqd
     Restart=always
     RestartSec=10s
+
+    [X-Fleet]
+    Global=true
 - path: /home/core/nsqd-sidekick.service
   content: |
     [Unit]
     Description=Nsqd etcd watcher
     Requires=etcd.service
     Requires=nsqd.service
-    Requires=nsqlookupd.service
     After=etcd.service
     After=nsqd.service
     After=nsqlookupd.service
@@ -146,4 +147,4 @@ write_files:
       done'
 
     [X-Fleet]
-    MachineOf=nsqd.service
+    Global=true
