@@ -64,7 +64,7 @@ write_files:
     ExecStartPre=/usr/bin/docker pull nsqio/nsqlookupd
     ExecStart=/usr/bin/docker run -rm --name=nsqlookupd -p 4160:4160 -p 4161:4161 nsqio/nsqlookupd
     ExecStop=/usr/bin/docker stop nsqlookupd
-    Restart=on-failure
+    Restart=always
     RestartSec=10s
 - path: /home/core/nsqlookupd-sidekick.service
   content: |
@@ -93,7 +93,7 @@ write_files:
         sleep 15; \
       done'
     ExecStop=/usr/bin/etcdctl rm /nsqlookupd
-    Restart=on-failure
+    Restart=always
     RestartSec=10s
 
     [X-Fleet]
@@ -145,6 +145,8 @@ write_files:
         fi; \
         sleep 30; \
       done'
+    Restart=always
+    RestartSec=10s
 
     [X-Fleet]
     Global=true
