@@ -1,5 +1,5 @@
 #cloud-config
-
+---
 coreos:
   etcd:
     # generate a new token for each unique cluster from https://discovery.etcd.io/new
@@ -7,37 +7,53 @@ coreos:
     #discovery: https://discovery.etcd.io/<token>
     addr: $public_ipv4:4001
     peer-addr: $public_ipv4:7001
+  etcd2:
+    # generate a new token for each unique cluster from https://discovery.etcd.io/new
+    # discovery: https://discovery.etcd.io/<token>
+    # multi-region and multi-cloud deployments need to use $public_ipv4
+    # advertise-client-urls: http://$public_ipv4:2379
+    initial-advertise-peer-urls: http://$private_ipv4:2380
+    # listen on both the official ports and the legacy ports
+    # legacy ports can be omitted if your application doesn't depend on them
+    listen-client-urls: http://$private_ipv4:2379,http://$private_ipv4:4001
+    listen-peer-urls: http://$private_ipv4:2380,http://$private_ipv4:7001
   fleet:
     public-ip: $public_ipv4
+  flannel:
+    interface: $public_ipv4
   units:
-  - name: etcd.service
-    command: start
-  - name: fleet.service
-    command: start
-  - name: docker-tcp.socket
-    command: start
-    enable: true
-    content: |
-      [Unit]
-      Description=Docker Socket for the API
+    - name: etcd.service
+      command: start
+    # To use etcd2, comment out the above service and uncomment these
+    # Note: this requires a release that contains etcd2
+    #- name: etcd2.service
+    #  command: start
+    - name: fleet.service
+      command: start
+    - name: docker-tcp.socket
+      command: start
+      enable: true
+      content: |
+        [Unit]
+        Description=Docker Socket for the API
 
-      [Socket]
-      ListenStream=2375
-      Service=docker.service
-      BindIPv6Only=both
+        [Socket]
+        ListenStream=2375
+        Service=docker.service
+        BindIPv6Only=both
 
-      [Install]
-      WantedBy=sockets.target
-  - name: settimezone.service
-    command: start
-    content: |
-      [Unit]
-      Description=Set the timezone
+        [Install]
+        WantedBy=sockets.target
+    - name: settimezone.service
+      command: start
+      content: |
+        [Unit]
+        Description=Set the timezone
 
-      [Service]
-      ExecStart=/usr/bin/timedatectl set-timezone UTC
-      RemainAfterExit=yes
-      Type=oneshot
+        [Service]
+        ExecStart=/usr/bin/timedatectl set-timezone UTC
+        RemainAfterExit=yes
+        Type=oneshot
 write_files:
 - path: /etc/ntp.conf
   content: |
@@ -84,11 +100,11 @@ write_files:
         TCP_PORT=4160; \
         curl -f ${COREOS_PRIVATE_IPV4}:$HTTP_PORT/ping; \
         if [ $? -eq 0 ]; then \
-          /usr/bin/etcdctl set /nsqlookupd ${COREOS_PRIVATE_IPV4}:$TCP_PORT --ttl 30; \
-          /usr/bin/etcdctl set /nsqlookupd-http ${COREOS_PRIVATE_IPV4}:$HTTP_PORT --ttl 30; \
+          /usr/bin/etcdctl set /nsqlookupd/${COREOS_PRIVATE_IPV4} ${COREOS_PRIVATE_IPV4}:$TCP_PORT --ttl 30; \
+          /usr/bin/etcdctl set /nsqlookupd-http/${COREOS_PRIVATE_IPV4} ${COREOS_PRIVATE_IPV4}:$HTTP_PORT --ttl 30; \
         else \
-          /usr/bin/etcdctl rm /nsqlookupd; \
-          /usr/bin/etcdctl rm /nsqlookupd-http; \
+          /usr/bin/etcdctl rm /nsqlookupd/${COREOS_PRIVATE_IPV4}; \
+          /usr/bin/etcdctl rm /nsqlookupd-http/${COREOS_PRIVATE_IPV4}; \
         fi; \
         sleep 15; \
       done'
@@ -113,8 +129,11 @@ write_files:
     ExecStartPre=-/usr/bin/docker rm nsqd
     ExecStartPre=/usr/bin/docker pull nsqio/nsqd
     ExecStart=/bin/bash -c '\
-        /usr/bin/docker run -rm --name=nsqd -p 4150:4150 -p 4151:4151 -v /data nsqio/nsqd --lookupd-tcp-address=$(/usr/bin/etcdctl get /nsqlookupd) --broadcast-address=${COREOS_PRIVATE_IPV4} \
-        '
+        for lookupd in $(/usr/bin/etcdctl ls /nsqlookupd); do \
+            LOOKUPDS="$LOOKUPDS --lookupd-tcp-address=$(/usr/bin/etcdctl get $lookupd)"; \
+        done; \
+        /usr/bin/docker run -rm --name=nsqd -p 4150:4150 -p 4151:4151 -v /data nsqio/nsqd $LOOKUPDS --broadcast-address=${COREOS_PRIVATE_IPV4} \
+    '
     ExecStop=/usr/bin/docker stop nsqd
     Restart=always
     RestartSec=10s
@@ -135,11 +154,13 @@ write_files:
     [Service]
     EnvironmentFile=/etc/environment
     ExecStart=/bin/bash -c '\
-      NSQLOOKUPD=$(/usr/bin/etcdctl get /nsqlookupd); \
+      NSQLS=$(/usr/bin/etcdctl ls /nsqlookupd); \
+      NSQLS_LEN=${#NSQLS[@]}; \
       while true; do \
-        echo "checking nsqlookupd location"; \
-        NSQLOOKUPDCHECK=$(/usr/bin/etcdctl get /nsqlookupd); \
-        if [ "$NSQLOOKUPDCHECK" != "$NSQLOOKUPD" ]; then \
+        echo "checking nsqlookupd locations"; \
+        NSQLS_CHECK=$(/usr/bin/etcdctl ls /nsqlookupd); \
+        NSQLS_CHECK_LEN=${#NSQLS_CHECK[@]}; \
+        if [ "$NSQLS_LEN" != "$NSQLS_CHECK_LEN" ]; then \
           echo "restarting nsqd"; \
           /usr/bin/docker kill nsqd; \
         fi; \
