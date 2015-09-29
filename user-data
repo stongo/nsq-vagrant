@@ -77,8 +77,8 @@ write_files:
     TimeoutStartSec=0
     ExecStartPre=-/usr/bin/docker kill nsqlookupd
     ExecStartPre=-/usr/bin/docker rm nsqlookupd
-    ExecStartPre=/usr/bin/docker pull nsqio/nsqlookupd
-    ExecStart=/usr/bin/docker run -rm --name=nsqlookupd -p 4160:4160 -p 4161:4161 nsqio/nsqlookupd
+    ExecStartPre=/usr/bin/docker pull nsqio/nsq
+    ExecStart=/usr/bin/docker run --name=nsqlookupd -p 4160:4160 -p 4161:4161 nsqio/nsq /nsqlookupd
     ExecStop=/usr/bin/docker stop nsqlookupd
     Restart=always
     RestartSec=10s
@@ -127,12 +127,12 @@ write_files:
     EnvironmentFile=/etc/environment
     ExecStartPre=-/usr/bin/docker kill nsqd
     ExecStartPre=-/usr/bin/docker rm nsqd
-    ExecStartPre=/usr/bin/docker pull nsqio/nsqd
+    ExecStartPre=/usr/bin/docker pull nsqio/nsq
     ExecStart=/bin/bash -c '\
         for lookupd in $(/usr/bin/etcdctl ls /nsqlookupd); do \
             LOOKUPDS="$LOOKUPDS --lookupd-tcp-address=$(/usr/bin/etcdctl get $lookupd)"; \
         done; \
-        /usr/bin/docker run -rm --name=nsqd -p 4150:4150 -p 4151:4151 -v /data nsqio/nsqd $LOOKUPDS --broadcast-address=${COREOS_PRIVATE_IPV4} \
+        /usr/bin/docker run --name=nsqd -p 4150:4150 -p 4151:4151 -v /data nsqio/nsq /nsqd $LOOKUPDS --broadcast-address=${COREOS_PRIVATE_IPV4} \
     '
     ExecStop=/usr/bin/docker stop nsqd
     Restart=always
